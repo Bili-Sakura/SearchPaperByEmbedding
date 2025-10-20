@@ -1,7 +1,5 @@
-requests
 scikit-learn
 sentence-transformers
 numpy
-streamlit
-python-dotenv
-openai
+gradio
+pandas

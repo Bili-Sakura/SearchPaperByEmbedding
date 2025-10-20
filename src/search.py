@@ -1,58 +1,55 @@
 import json
 import numpy as np
-import os
 import hashlib
 from pathlib import Path
 from sklearn.metrics.pairwise import cosine_similarity
-
-
-class EmbeddingModel:
-    def __init__(self, model_type="openai", api_key=None, base_url=None):
-        self.model_type = model_type
-
-        if self.model_type == "openai":
-            from openai import OpenAI
-
-            self.client = OpenAI(
-                api_key=api_key or os.getenv("OPENAI_API_KEY"), base_url=base_url
-            )
-            self.model_name = "text-embedding-3-large"
-        else:
-            try:
-                from sentence_transformers import SentenceTransformer
-
-                self.model = SentenceTransformer("all-MiniLM-L6-v2")
-                self.model_name = "all-MiniLM-L6-v2"
-            except ImportError:
-                raise ImportError(
-                    "sentence-transformers is not installed. "
-                    "Please install it with: pip install sentence-transformers"
-                )
-
-    def embed(self, texts):
-        if isinstance(texts, str):
-            texts = [texts]
-
-        if self.model_type == "openai":
-            embeddings = []
-            batch_size = 100
-            for i in range(0, len(texts), batch_size):
-                batch = texts[i : i + batch_size]
-                response = self.client.embeddings.create(
-                    input=batch, model=self.model_name
-                )
-                embeddings.extend([item.embedding for item in response.data])
-            return np.array(embeddings)
-        else:
-            return self.model.encode(texts, show_progress_bar=len(texts) > 100)
+from .embedding import create_embedding_model, BaseEmbedding
 
 
 class PaperSearcher:
-    def __init__(self, papers_file, model_type="openai", api_key=None, base_url=None):
+    def __init__(
+        self,
+        papers_file,
+        model_type="openai",
+        model_name=None,
+        api_key=None,
+        base_url=None,
+        device=None,
+        embedding_model=None,
+        **kwargs,
+    ):
+        """
+        Initialize PaperSearcher with flexible embedding options.
+
+        Args:
+            papers_file: Path to JSON file containing papers
+            model_type: Type of embedding model ('openai', 'local', 'huggingface')
+            model_name: Specific model name (optional)
+            api_key: API key for OpenAI models
+            base_url: Base URL for OpenAI API
+            device: Device for local models ('cuda', 'cpu', or None for auto)
+            embedding_model: Pre-initialized embedding model (overrides other options)
+            **kwargs: Additional model-specific parameters
+        """
         with open(papers_file, "r", encoding="utf-8") as f:
             self.papers = json.load(f)
 
-        self.model = EmbeddingModel(model_type, api_key, base_url)
+        if embedding_model is not None:
+            if not isinstance(embedding_model, BaseEmbedding):
+                raise TypeError(
+                    "embedding_model must be an instance of BaseEmbedding"
+                )
+            self.model = embedding_model
+        else:
+            self.model = create_embedding_model(
+                model_type=model_type,
+                model_name=model_name,
+                api_key=api_key,
+                base_url=base_url,
+                device=device,
+                **kwargs,
+            )
+
         self.cache_file = self._get_cache_file(papers_file, self.model.model_name)
         self.embeddings = None
 

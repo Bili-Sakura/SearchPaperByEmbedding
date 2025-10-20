@@ -1,114 +1,272 @@
-import streamlit as st
-import pandas as pd
+"""
+Gradio app for Paper Semantic Search.
+Pre-loaded with ICLR 2026 papers for instant searching.
+Optimized for Hugging Face Spaces.
+"""
+
+import gradio as gr
 import json
 import os
-import sys
-from dotenv import load_dotenv
+import pandas as pd
+from pathlib import Path
 from src.search import PaperSearcher
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# Configuration
+PAPERS_FILE = "iclr2026_papers.json"
+DEFAULT_MODEL_TYPE = "local"
+DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
 
-st.set_page_config(initial_sidebar_state="expanded")
+# Global searcher instance
+searcher = None
+papers = []
+primary_areas = []
 
-load_dotenv(override=True)
 
-st.title("Paper Semantic Search")
-
-uploaded_file = st.file_uploader("Upload a papers JSON file", type="json")
-
-if uploaded_file is not None:
-    papers_json = json.load(uploaded_file)
-
-    if isinstance(papers_json, dict) and "results" in papers_json:
-        papers = [r["paper"] for r in papers_json["results"]]
-    elif isinstance(papers_json, dict):
-        papers = [papers_json]
-    else:
-        papers = papers_json
-
-    papers_file = uploaded_file.name
-    with open(papers_file, "w", encoding="utf-8") as f:
-        json.dump(papers, f)
-
-    st.sidebar.header("Settings")
-    model_type = st.sidebar.selectbox("Select model type", ("openai", "local"), index=0)
-
-    api_key = None
-    base_url = None
-    if model_type == "openai":
-        api_key = st.sidebar.text_input(
-            "Enter your OpenAI API key",
-            type="password",
-            value=os.getenv("OPENAI_API_KEY", ""),
+def initialize_app():
+    """Initialize the app by loading papers and computing embeddings."""
+    global searcher, papers, primary_areas
+    
+    if not Path(PAPERS_FILE).exists():
+        return f"❌ Papers file '{PAPERS_FILE}' not found. Please ensure the file exists."
+    
+    try:
+        # Load papers
+        with open(PAPERS_FILE, "r", encoding="utf-8") as f:
+            papers_data = json.load(f)
+        
+        # Handle different JSON formats
+        if isinstance(papers_data, dict) and "results" in papers_data:
+            papers = [r["paper"] for r in papers_data["results"]]
+        elif isinstance(papers_data, dict):
+            papers = [papers_data]
+        else:
+            papers = papers_data
+        
+        # Extract primary areas
+        primary_areas = sorted(list(set(p.get("primary_area", "N/A") for p in papers)))
+        
+        # Initialize searcher with default model
+        searcher = PaperSearcher(
+            PAPERS_FILE,
+            model_type=DEFAULT_MODEL_TYPE,
+            model_name=DEFAULT_MODEL_NAME,
         )
-        base_url_input = st.sidebar.text_input(
-            "Enter your OpenAI Base URL (optional)",
-            value=os.getenv("OPENAI_BASE_URL", ""),
-        )
-        base_url = base_url_input if base_url_input else None
+        
+        # Compute embeddings (will use cache if available)
+        searcher.compute_embeddings()
+        
+        return f"✅ Loaded {len(papers)} papers. Ready to search using {searcher.model.model_name}!"
+        
+    except Exception as e:
+        return f"❌ Error initializing app: {str(e)}"
 
-    top_k = st.sidebar.number_input("Number of results", min_value=1, value=100)
 
-    primary_areas = sorted(list(set(p.get("primary_area", "N/A") for p in papers)))
-    selected_areas = st.sidebar.multiselect(
-        "Filter by primary area", options=primary_areas
+def search_papers(query, top_k, filter_areas):
+    """Search for similar papers."""
+    global searcher
+    
+    if searcher is None:
+        return "❌ App not initialized. Please refresh the page.", None
+    
+    if not query or not query.strip():
+        return "⚠️ Please enter a search query.", None
+    
+    try:
+        # Perform search
+        results = searcher.search(query=query.strip(), top_k=int(top_k))
+        
+        # Filter by primary areas if specified
+        if filter_areas:
+            results = [
+                r for r in results
+                if r["paper"].get("primary_area", "N/A") in filter_areas
+            ]
+        
+        if not results:
+            return "⚠️ No results found matching your criteria.", None
+        
+        # Format results for display
+        results_data = []
+        for i, result in enumerate(results, 1):
+            paper = result["paper"]
+            title = paper.get("title", "N/A")
+            url = paper.get("forum_url", "N/A")
+            
+            # Create clickable link for title
+            if url != "N/A":
+                title_link = f'<a href="{url}" target="_blank">{title}</a>'
+            else:
+                title_link = title
+            
+            results_data.append({
+                "Rank": i,
+                "Score": f"{result['similarity']:.4f}",
+                "Title": title,
+                "Area": paper.get("primary_area", "N/A"),
+                "Number": f"#{paper.get('number', 'N/A')}",
+                "URL": url,
+            })
+        
+        df = pd.DataFrame(results_data)
+        
+        success_msg = f"✅ Found {len(results)} relevant papers (similarity scores: {results[0]['similarity']:.4f} - {results[-1]['similarity']:.4f})"
+        return success_msg, df
+        
+    except Exception as e:
+        return f"❌ Search error: {str(e)}", None
+
+
+def get_example_query(example_type):
+    """Return example queries for different research areas."""
+    examples = {
+        "Computer Vision": "3D scene understanding and object detection using deep neural networks",
+        "NLP": "Large language models for reasoning and instruction following",
+        "Reinforcement Learning": "Policy optimization and model-based reinforcement learning for robotics",
+        "Generative Models": "Diffusion models and variational autoencoders for image generation",
+        "Theory": "Optimization theory and convergence analysis for neural networks",
+        "ML Systems": "Efficient training and inference systems for large-scale machine learning",
+    }
+    return examples.get(example_type, "")
+
+
+# Initialize the app
+init_status = initialize_app()
+print(init_status)
+
+# Create Gradio interface
+with gr.Blocks(title="ICLR 2026 Paper Search", theme=gr.themes.Soft()) as demo:
+    gr.Markdown(
+        f"""
+        # 🔍 ICLR 2026 Paper Semantic Search
+        
+        Search through **{len(papers)} ICLR 2026 submissions** using semantic similarity.
+        
+        {init_status}
+        """
+    )
+    
+    with gr.Row():
+        with gr.Column(scale=2):
+            gr.Markdown("### 🔎 Search Query")
+            
+            query_input = gr.Textbox(
+                label="What papers are you looking for?",
+                placeholder="Describe the papers you're interested in...\n\nExamples:\n• 'vision-language models for embodied AI'\n• 'efficient transformers with linear attention'\n• 'few-shot learning with meta-learning'",
+                lines=4,
+            )
+            
+            with gr.Row():
+                with gr.Column(scale=2):
+                    example_type = gr.Dropdown(
+                        choices=[
+                            "Computer Vision",
+                            "NLP",
+                            "Reinforcement Learning",
+                            "Generative Models",
+                            "Theory",
+                            "ML Systems",
+                        ],
+                        label="Quick Examples",
+                        value="Computer Vision",
+                    )
+                with gr.Column(scale=1):
+                    load_example_btn = gr.Button("📝 Load Example", size="sm")
+            
+            search_button = gr.Button("🚀 Search Papers", variant="primary", size="lg")
+            
+            status_output = gr.Textbox(
+                label="Status",
+                interactive=False,
+                show_label=False,
+            )
+        
+        with gr.Column(scale=1):
+            gr.Markdown("### ⚙️ Search Settings")
+            
+            top_k = gr.Slider(
+                minimum=5,
+                maximum=200,
+                value=50,
+                step=5,
+                label="Number of Results",
+                info="How many papers to return",
+            )
+            
+            filter_areas = gr.CheckboxGroup(
+                choices=primary_areas,
+                label="Filter by Research Area",
+                info="Leave empty to search all areas",
+            )
+            
+            gr.Markdown(
+                f"""
+                ### 📊 Dataset Info
+                
+                - **Conference**: ICLR 2026
+                - **Papers**: {len(papers)}
+                - **Model**: {DEFAULT_MODEL_NAME}
+                - **Areas**: {len(primary_areas)}
+                """
+            )
+    
+    gr.Markdown("### 📊 Search Results")
+    
+    results_output = gr.Dataframe(
+        headers=["Rank", "Score", "Title", "Area", "Number", "URL"],
+        datatype=["number", "str", "str", "str", "str", "str"],
+        wrap=True,
+        interactive=False,
+        height=500,
+    )
+    
+    gr.Markdown(
+        """
+        ---
+        ### 💡 Search Tips
+        
+        - **Be specific**: Describe the exact problem, method, or domain you're interested in
+        - **Use technical terms**: The model understands research terminology well
+        - **Combine concepts**: Try queries like "graph neural networks for drug discovery"
+        - **Filter by area**: Narrow down results by selecting specific research areas
+        
+        ### 🎯 How it Works
+        
+        This tool uses semantic search powered by sentence embeddings. Your query is converted into a vector,
+        and we find papers whose titles and abstracts have the most similar vectors using cosine similarity.
+        
+        ### 🔗 Links
+        
+        - [GitHub Repository](https://github.com/gyj155/SearchPaperByEmbedding)
+        - [ICLR 2026](https://iclr.cc/Conferences/2026)
+        """
+    )
+    
+    # Event handlers
+    load_example_btn.click(
+        fn=get_example_query,
+        inputs=[example_type],
+        outputs=[query_input],
+    )
+    
+    search_button.click(
+        fn=search_papers,
+        inputs=[query_input, top_k, filter_areas],
+        outputs=[status_output, results_output],
+    )
+    
+    # Also trigger search on Enter key
+    query_input.submit(
+        fn=search_papers,
+        inputs=[query_input, top_k, filter_areas],
+        outputs=[status_output, results_output],
     )
 
-    @st.cache_resource
-    def _get_searcher(papers_file, model_type, api_key=None, base_url=None):
-        return PaperSearcher(
-            papers_file, model_type=model_type, api_key=api_key, base_url=base_url
-        )
 
-    try:
-        searcher = _get_searcher(
-            papers_file, model_type, api_key=api_key, base_url=base_url
-        )
-        with st.spinner("Computing embeddings..."):
-            searcher.compute_embeddings()
-        st.success("Embeddings computed and cached.")
-
-        st.header("Search")
-        query = st.text_area("Enter your search query (e.g., describe a paper)")
-
-        if st.button("Search"):
-            if query:
-                with st.spinner("Searching..."):
-                    results = searcher.search(query=query, top_k=top_k)
-
-                st.header("Results")
-
-                filtered_results = results
-                if selected_areas:
-                    filtered_results = [
-                        r
-                        for r in results
-                        if r["paper"].get("primary_area", "N/A") in selected_areas
-                    ]
-
-                results_data = []
-                for result in filtered_results:
-                    paper = result["paper"]
-                    results_data.append(
-                        {
-                            "Similarity": f"{result['similarity']:.4f}",
-                            "Title": paper["title"],
-                            "Primary Area": paper.get("primary_area", "N/A"),
-                            "URL": paper.get("forum_url", "No URL available."),
-                            "Abstract": paper.get("abstract", "No abstract available."),
-                        }
-                    )
-
-                if results_data:
-                    df = pd.DataFrame(results_data)
-                    st.dataframe(df)
-                else:
-                    st.warning("No results found matching your criteria.")
-            else:
-                st.warning("Please enter a search query.")
-    except ImportError as e:
-        st.error(f"An error occurred: {e}")
-    except ValueError as e:
-        st.error(f"An error occurred: {e}")
-    except Exception as e:
-        st.error(f"An unexpected error occurred: {e}")
+# For HuggingFace Spaces and local deployment
+if __name__ == "__main__":
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=int(os.getenv("PORT", 7860)),
+        share=False,
+        show_error=True,
+    )

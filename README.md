@@ -1,138 +1,85 @@
 [English](./README.md) | [简体中文](./README_zh-CN.md)
 
-# Paper Semantic Search
+# 🔍 ICLR 2026 Paper Search
 
-Find similar papers using semantic search. Supports both local models (free) and OpenAI API (better quality).
+Search through 18,000+ ICLR 2026 submissions using semantic similarity.
 
-![Web UI](./assets/webui.png)
+## What is This?
+
+A simple search tool to find research papers by describing what you're looking for in natural language. Just type your query and get relevant papers instantly!
 
 ## Features
 
-- Request for papers from OpenReview (e.g., ICLR2026 submissions)
-- Semantic search with example papers or text queries
-- Support embedding caching
-- Embed model support: Open-source (e.g., all-MiniLM-L6-v2) or OpenAI
+- 🔎 **Natural Language Search** - Describe papers in plain English
+- ⚡ **Instant Results** - Pre-computed embeddings for fast search
+- 🎯 **Smart Filtering** - Filter by research area
+- 📊 **18,000+ Papers** - All ICLR 2026 submissions
+- 🆓 **Free & Open Source**
 
-## Quick Start
+## How to Use
 
-### Web UI (Recommended)
+1. **Enter your search query** - Describe what papers you're looking for
+2. **Adjust settings** (optional) - Number of results, research area filters
+3. **Click Search** - Get papers ranked by relevance
 
-1. **Prepare Papers**: Follow the instructions in "Prepare Papers" to download the paper data.
-2. **Launch the App**:
+### Example Queries
+
+- "vision transformers for image classification"
+- "efficient attention mechanisms for long sequences"
+- "few-shot learning with meta-learning"
+- "diffusion models for image generation"
+- "graph neural networks for molecular property prediction"
+
+## Running Locally
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the app
+python app.py
+```
+
+Visit `http://localhost:7860`
+
+## Deploy to Hugging Face Spaces
+
+1. Create a new Space at https://huggingface.co/spaces
+2. Push your code:
    ```bash
-   streamlit run app.py
+   git remote add hf https://huggingface.co/spaces/YOUR_USERNAME/SPACE_NAME
+   git push hf main
    ```
+3. Your search tool will be live!
 
-### As a Library
-
-#### Installation
-
-For OpenAI model (requires API key):
-
-```bash
-pip install -r requirements.txt
-```
-
-For local model (free, but larger installation):
-
-```bash
-pip install -r requirements.txt
-pip install -r requirements-local.txt
-```
-
-#### 1. Prepare Papers
-
-```python
-from src.crawl import crawl_papers
-
-crawl_papers(
-    venue_id="ICLR.cc/2026/Conference/Submission",
-    output_file="iclr2026_papers.json",
-)
-```
-
-#### 2. Search Papers
-
-```python
-from src.search import PaperSearcher
-
-# Local model (free)
-searcher = PaperSearcher('iclr2026_papers.json', model_type='local')
-
-# OpenAI model (better, requires API key)
-# export OPENAI_API_KEY='your-key'
-# searcher = PaperSearcher('iclr2026_papers.json', model_type='openai')
-
-searcher.compute_embeddings()
-
-# Search with example papers that you are interested in
-examples = [
-    {
-        "title": "Part-X-MLLM: Part-aware 3D Multimodal Large Language Model",
-        "abstract": "We introduce Part-X-MLLM, a native 3D multimodal large language model that unifies diverse 3D tasks by formulating them as programs in a structured, executable grammar. Given an RGB point cloud and a natural language prompt, our model autoregressively generates a single, coherent token sequence encoding part-level bounding boxes, semantic descriptions, and edit commands. This structured output serves as a versatile interface to drive downstream geometry-aware modules for part-based generation and editing. By decoupling the symbolic planning from the geometric synthesis, our approach allows any compatible geometry engine to be controlled through a single, language-native frontend. We pre-train a dual-encoder architecture to disentangle structure from semantics and instruction-tune the model on a large-scale, part-centric dataset. Experiments demonstrate that our model excels at producing high-quality, structured plans, enabling state-of-the-art performance in grounded Q&A, compositional generation, and localized editing through one unified interface."
-    }
-]
-
-results = searcher.search(examples=examples, top_k=100)
-
-# Or search with text query
-results = searcher.search(query="interesting topics", top_k=100)
-
-searcher.display(results, n=10)
-searcher.save(results, 'results.json')
-```
+**Note**: Make sure to upload `iclr2026_papers.json` and the cache file `output/cache_*.npy` to the Space.
 
 ## How It Works
 
-1. Paper titles and abstracts are converted to embeddings
-2. Embeddings are cached automatically
-3. Your query is embedded using the same model
-4. Cosine similarity finds the most similar papers
-5. Results are ranked by similarity score
+Papers are converted to embeddings (numerical vectors) that capture their semantic meaning. When you search, your query is converted to the same format and we find papers with the most similar vectors using cosine similarity.
 
-## Cache
+## Technology
 
-Embeddings are cached as `cache_<filename>_<hash>_<model_name>.npy`. Delete to recompute.
-
-## Example Output
-
-```
-================================================================================
-Top 100 Results (showing 10)
-================================================================================
-
-1. [0.8456] Part-X-MLLM: Part-aware 3D Multimodal Large Language Model
-   #3 | foundation or frontier models, including LLMs
-   https://openreview.net/forum?id=WffiETiSeU
-
-2. [0.8234] Large Pretraining Datasets Don't Guarantee Robustness after Fine-Tuning
-   #2 | transfer learning, meta learning, and lifelong learning
-   https://openreview.net/forum?id=7QjQ1mpNMX
-
-3. [0.8199] Can Microcanonical Langevin Dynamics Leverage Mini-Batch Gradient Noise?
-   #1 | probabilistic methods (Bayesian methods, variational inference, sampling, UQ, etc.)
-   https://openreview.net/forum?id=h7qdCvhMdb
-```
-
-## Tips
-
-- Use 1-5 example papers for best results, or a paragraph of description of your interested topic
-- Local model is good enough for most cases
-- OpenAI model for critical search (~$1 for 18k queries)
-
-If it's useful, please consider giving a star~
+- **Framework**: Gradio
+- **Embedding Model**: all-MiniLM-L6-v2 (fast, 384 dimensions)
+- **Dataset**: ICLR 2026 submissions from OpenReview
 
 ## Citation
-
-If you find this repository useful, please cite it as:
 
 ```bibtex
 @misc{SearchPaperByEmbedding,
   author = {gyj155},
-  title = {Paper Semantic Search},
+  title = {ICLR 2026 Paper Search},
   year = {2025},
   publisher = {GitHub},
-  journal = {GitHub repository},
   howpublished = {\url{https://github.com/gyj155/SearchPaperByEmbedding}}
 }
 ```
+
+## License
+
+MIT License
+
+---
+
+⭐ If this helps you find papers, please star the repo!

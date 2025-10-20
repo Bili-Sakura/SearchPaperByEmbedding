@@ -26,15 +26,15 @@ wheels/
 .env
 
 # Project-specific generated files
-iclr2026_papers.json
 results.json
-cache_*.npy
+temp_*.json
 
-# Streamlit
-.streamlit/
+# Don't ignore papers and cache for HF Spaces
+# iclr2026_papers.json
+# output/cache_*.npy
 
-# User-uploaded files from the web app can also create .json files in the root directory.
-# Consider adding them here or saving them in a dedicated, ignored folder.
+# Temporary files from web app
+temp_*.json
 
 # IDE settings
 .vscode/

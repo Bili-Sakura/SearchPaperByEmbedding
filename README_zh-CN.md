@@ -1,138 +1,85 @@
-# 简体中文
+[English](./README.md) | [简体中文](./README_zh-CN.md)
 
-# 论文语义搜索
+# 🔍 ICLR 2026 论文搜索
 
-使用语义搜索查找相似的论文。支持本地模型（免费）和 OpenAI API（质量更高）。
+使用语义相似度搜索 18,000+ 篇 ICLR 2026 投稿论文。
 
-![Web UI](./assets/webui.png)
+## 这是什么？
 
-## 功能
+一个简单的搜索工具，通过自然语言描述来查找研究论文。只需输入你的查询，即可获得相关论文！
 
-- 从 OpenReview 请求论文（例如，ICLR2026 提交的论文）
-- 使用示例论文或文本查询进行语义搜索
-- 支持嵌入缓存
-- 支持的嵌入模型：开源模型（例如，all-MiniLM-L6-v2）或 OpenAI
+## 功能特点
 
-## 快速入门
+- 🔎 **自然语言搜索** - 用简单的话描述论文
+- ⚡ **即时结果** - 预计算嵌入向量，搜索快速
+- 🎯 **智能筛选** - 按研究领域过滤
+- 📊 **18,000+ 论文** - 所有 ICLR 2026 投稿
+- 🆓 **免费开源**
 
-### Web UI (推荐)
+## 使用方法
 
-1. **准备论文**: 参照 "准备论文" 的说明下载论文数据.
-2. **启动应用**:
+1. **输入搜索查询** - 描述你想找的论文
+2. **调整设置**（可选）- 结果数量、研究领域过滤
+3. **点击搜索** - 获得按相关度排序的论文
+
+### 示例查询
+
+- "图像分类的视觉 Transformer"
+- "长序列的高效注意力机制"
+- "元学习的小样本学习"
+- "图像生成的扩散模型"
+- "分子性质预测的图神经网络"
+
+## 本地运行
+
+```bash
+# 安装依赖
+pip install -r requirements.txt
+
+# 运行应用
+python app.py
+```
+
+访问 `http://localhost:7860`
+
+## 部署到 Hugging Face Spaces
+
+1. 在 https://huggingface.co/spaces 创建新 Space
+2. 推送代码:
    ```bash
-   streamlit run app.py
+   git remote add hf https://huggingface.co/spaces/YOUR_USERNAME/SPACE_NAME
+   git push hf main
    ```
+3. 你的搜索工具即刻上线！
 
-### 作为库使用
-
-#### 安装
-
-对于 OpenAI 模型（需要 API 密钥）：
-
-```bash
-pip install -r requirements.txt
-```
-
-对于本地模型（免费，但安装包更大）：
-
-```bash
-pip install -r requirements.txt
-pip install -r requirements-local.txt
-```
-
-#### 1. 准备论文
-
-```python
-from crawl import crawl_papers
-
-crawl_papers(
-    venue_id="ICLR.cc/2026/Conference/Submission",
-    output_file="iclr2026_papers.json",
-)
-```
-
-#### 2. 搜索论文
-
-```python
-from search import PaperSearcher
-
-# 本地模型（免费）
-searcher = PaperSearcher('iclr2026_papers.json', model_type='local')
-
-# OpenAI 模型（效果更好，需要 API 密钥）
-# export OPENAI_API_KEY='your-key'
-# searcher = PaperSearcher('iclr2026_papers.json', model_type='openai')
-
-searcher.compute_embeddings()
-
-# 使用你感兴趣的示例论文进行搜索
-examples = [
-    {
-        "title": "Part-X-MLLM: Part-aware 3D Multimodal Large Language Model",
-        "abstract": "We introduce Part-X-MLLM, a native 3D multimodal large language model that unifies diverse 3D tasks by formulating them as programs in a structured, executable grammar. Given an RGB point cloud and a natural language prompt, our model autoregressively generates a single, coherent token sequence encoding part-level bounding boxes, semantic descriptions, and edit commands. This structured output serves as a versatile interface to drive downstream geometry-aware modules for part-based generation and editing. By decoupling the symbolic planning from the geometric synthesis, our approach allows any compatible geometry engine to be controlled through a single, language-native frontend. We pre-train a dual-encoder architecture to disentangle structure from semantics and instruction-tune the model on a large-scale, part-centric dataset. Experiments demonstrate that our model excels at producing high-quality, structured plans, enabling state-of-the-art performance in grounded Q&A, compositional generation, and localized editing through one unified interface."
-    }
-]
-
-results = searcher.search(examples=examples, top_k=100)
-
-# 或者使用文本查询
-results = searcher.search(query="interesting topics", top_k=100)
-
-searcher.display(results, n=10)
-searcher.save(results, 'results.json')
-```
+**注意**: 确保上传 `iclr2026_papers.json` 和缓存文件 `output/cache_*.npy` 到 Space。
 
 ## 工作原理
 
-1.  论文标题和摘要被转换为嵌入向量
-2.  嵌入向量会自动缓存
-3.  你的查询将使用相同的模型进行嵌入
-4.  余弦相似度用于查找最相似的论文
-5.  结果按相似度得分排序
+论文被转换为嵌入向量（数值向量），捕捉其语义含义。当你搜索时，查询被转换为相同格式，我们使用余弦相似度找出最相似向量的论文。
 
-## 缓存
+## 技术栈
 
-嵌入向量被缓存为 `cache_<filename>_<hash>_<model_name>.npy`。删除该文件以重新计算。
+- **框架**: Gradio
+- **嵌入模型**: all-MiniLM-L6-v2 (快速, 384 维)
+- **数据集**: OpenReview 的 ICLR 2026 投稿
 
-## 输出示例
-
-```
-================================================================================
-Top 100 Results (showing 10)
-================================================================================
-
-1. [0.8456] Part-X-MLLM: Part-aware 3D Multimodal Large Language Model
-   #3 | foundation or frontier models, including LLMs
-   https://openreview.net/forum?id=WffiETiSeU
-
-2. [0.8234] Large Pretraining Datasets Don't Guarantee Robustness after Fine-Tuning
-   #2 | transfer learning, meta learning, and lifelong learning
-   https://openreview.net/forum?id=7QjQ1mpNMX
-
-3. [0.8199] Can Microcanonical Langevin Dynamics Leverage Mini-Batch Gradient Noise?
-   #1 | probabilistic methods (Bayesian methods, variational inference, sampling, UQ, etc.)
-   https://openreview.net/forum?id=h7qdCvhMdb
-```
-
-## 提示
-
-- 使用 1-5 篇示例论文或一段你感兴趣的主题描述以获得最佳结果
-- 在大多数情况下，本地模型已经足够好
-- 对于关键搜索，请使用 OpenAI 模型（约 1 美元可查询 18k 次）
-
-如果这个项目对你有用，请考虑给个 star~
-
-## 如何引用
-
-如果你觉得这个项目有用，请引用它：
+## 引用
 
 ```bibtex
 @misc{SearchPaperByEmbedding,
   author = {gyj155},
-  title = {Paper Semantic Search},
+  title = {ICLR 2026 Paper Search},
   year = {2025},
   publisher = {GitHub},
-  journal = {GitHub repository},
   howpublished = {\url{https://github.com/gyj155/SearchPaperByEmbedding}}
 }
 ```
+
+## 许可证
+
+MIT License
+
+---
+
+⭐ 如果这个工具帮你找到了论文，请给仓库加星！
